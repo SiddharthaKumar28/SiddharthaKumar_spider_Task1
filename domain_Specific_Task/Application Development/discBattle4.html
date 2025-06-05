@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Disc Battle 4</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f0f0f0;
+      text-align: center;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(7, 50px);
+      gap: 5px;
+      justify-content: center;
+      margin: 20px auto;
+    }
+    .cell {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: #ccc;
+    }
+    .red { background: red; }
+    .yellow { background: yellow; }
+    .blocked { background: #444; }
+    #info, #result, #scores {
+      font-size: 18px;
+      margin-top: 10px;
+    }
+    button {
+      margin: 10px;
+      padding: 10px 20px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Disc Battle 4</h1>
+<div id="info">🛡️ Player 2: Block 4 columns</div>
+<div class="grid" id="grid"></div>
+<div id="result"></div>
+<div id="scores"></div>
+<button onclick="resetGame()">Reset Game</button>
+
+<script>
+  const ROWS = 6;
+  const COLS = 7;
+  let grid = [];
+  let currentPlayer = 1;
+  let blockedColumns = [];
+  let blockingPhase = true;
+  let blocksChosen = [];
+
+  const gridEl = document.getElementById("grid");
+  const infoEl = document.getElementById("info");
+  const resultEl = document.getElementById("result");
+  const scoresEl = document.getElementById("scores");
+
+  let scores = JSON.parse(localStorage.getItem("discBattleScores")) || {
+    player1: 0,
+    player2: 0,
+    draws: 0
+  };
+
+  function initGrid() {
+    grid = [];
+    gridEl.innerHTML = '';
+    for (let r = 0; r < ROWS; r++) {
+      let row = [];
+      for (let c = 0; c < COLS; c++) {
+        row.push(0);
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.dataset.row = r;
+        cell.dataset.col = c;
+        cell.onclick = handleClick;
+        gridEl.appendChild(cell);
+      }
+      grid.push(row);
+    }
+    updateInfo();
+    showScores();
+    resultEl.innerText = '';
+  }
+
+  function handleClick(e) {
+    const col = parseInt(e.target.dataset.col);
+
+    if (blockingPhase) {
+      if (blocksChosen.includes(col) || isColumnFull(col)) return;
+
+      blocksChosen.push(col);
+      updateBlockedColumns();
+
+      if (blocksChosen.length >= 4 || blocksChosen.length >= getAvailableColumns().length - 1) {
+        blockingPhase = false;
+        updateInfo();
+      }
+      return;
+    }
+
+    if (blockedColumns.includes(col) || isColumnFull(col)) return;
+
+    for (let row = ROWS - 1; row >= 0; row--) {
+      if (grid[row][col] === 0) {
+        grid[row][col] = currentPlayer;
+        const index = row * COLS + col;
+        document.getElementsByClassName("cell")[index].classList.add(currentPlayer === 1 ? "red" : "yellow");
+        break;
+      }
+    }
+
+    if (checkWin()) {
+      resultEl.innerText = `🏆 Player ${currentPlayer} wins!`;
+      scores[currentPlayer === 1 ? 'player1' : 'player2']++;
+      saveScores();
+      showScores();
+      disableBoard();
+      return;
+    }
+
+    if (isBoardFull()) {
+      resultEl.innerText = "🤝 It's a draw!";
+      scores.draws++;
+      saveScores();
+      showScores();
+      disableBoard();
+      return;
+    }
+
+    // Switch turns
+    currentPlayer = currentPlayer === 1 ? 2 : 1;
+    blockingPhase = true;
+    blocksChosen = [];
+    blockedColumns = [];
+    updateBlockedColumns();
+    updateInfo();
+  }
+
+  function updateBlockedColumns() {
+    blockedColumns = [...blocksChosen];
+    const cells = document.querySelectorAll('.cell');
+    cells.forEach(cell => {
+      const col = parseInt(cell.dataset.col);
+      if (blockedColumns.includes(col)) {
+        cell.classList.add("blocked");
+      } else {
+        cell.classList.remove("blocked");
+      }
+    });
+  }
+
+  function updateInfo() {
+    if (blockingPhase) {
+      infoEl.innerText = `🛡️ Player ${currentPlayer === 1 ? 2 : 1}: Block ${4 - blocksChosen.length} column(s)`;
+    } else {
+      infoEl.innerText = `🎯 Player ${currentPlayer}'s Turn (${currentPlayer === 1 ? "🔴" : "🟡"})`;
+    }
+  }
+
+  function getAvailableColumns() {
+    return [...Array(COLS).keys()].filter(col => !isColumnFull(col));
+  }
+
+  function isColumnFull(col) {
+    return grid[0][col] !== 0;
+  }
+
+  function isBoardFull() {
+    return grid[0].every(val => val !== 0);
+  }
+
+  function checkWin() {
+    const dirs = [[1, 0], [0, 1], [1, 1], [1, -1]];
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const player = grid[r][c];
+        if (player === 0) continue;
+        for (let [dr, dc] of dirs) {
+          let count = 1;
+          for (let k = 1; k < 4; k++) {
+            const nr = r + dr * k;
+            const nc = c + dc * k;
+            if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && grid[nr][nc] === player) {
+              count++;
+            } else {
+              break;
+            }
+          }
+          if (count === 4) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function disableBoard() {
+    document.querySelectorAll(".cell").forEach(cell => {
+      cell.onclick = null;
+    });
+  }
+
+  function saveScores() {
+    localStorage.setItem("discBattleScores", JSON.stringify(scores));
+  }
+
+  function showScores() {
+    scoresEl.innerText = `🔴 Player 1 Wins: ${scores.player1} | 🟡 Player 2 Wins: ${scores.player2} | 🤝 Draws: ${scores.draws}`;
+  }
+
+  function resetGame() {
+    currentPlayer = 1;
+    blockedColumns = [];
+    blocksChosen = [];
+    blockingPhase = true;
+    initGrid();
+  }
+
+  initGrid();
+</script>
+
+</body>
+</html>
