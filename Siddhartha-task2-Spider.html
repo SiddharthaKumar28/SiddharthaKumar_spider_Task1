@@ -1,0 +1,506 @@
+<!-- <!DOCTYPE html>
+<html>
+<head>
+    <title>Bill Split App - Level 2+</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: #f2f2f2;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            box-shadow: 0 0 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+        }
+        label {
+            margin-top: 10px;
+            display: block;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #3498db;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        .message {
+            color: red;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .group {
+            background: #ecf0f1;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .group button {
+            background: #e74c3c;
+            margin-top: 5px;
+        }
+        .group button:hover {
+            background: #c0392b;
+        }
+        .summary {
+            background: #d4edda;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+            border: 1px solid #c3e6cb;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Bill Split App</h1>
+
+    <div id="loginSection">
+        <label>Username:</label>
+        <input type="text" id="username" placeholder="Enter username">
+        <label>Password:</label>
+        <input type="password" id="password" placeholder="Enter password">
+        <button onclick="login()">Login</button>
+        <div id="loginMessage" class="message"></div>
+    </div>
+
+    <div id="appSection" style="display:none;">
+        <p>Welcome, <strong id="currentUser"></strong>!</p>
+
+        <label>Create Group:</label>
+        <input type="text" id="groupName" placeholder="Group name">
+        <button onclick="createGroup()">Create Group</button>
+        <div id="groupMessage" class="message"></div>
+
+        <h3>Your Groups:</h3>
+        <div id="groupList"></div>
+        <button style="background:#e67e22;" onclick="logout()">Logout</button>
+    </div>
+</div>
+
+<script>
+    let groups = [];
+
+    function login() {
+        const username = document.getElementById("username").value.trim();
+        const password = document.getElementById("password").value.trim();
+        const msg = document.getElementById("loginMessage");
+        msg.innerText = "";
+
+        if (username === "" || password === "") {
+            msg.innerText = "Please enter both username and password.";
+            return;
+        }
+
+        const fakeToken = "jwt_" + btoa(username + ":" + password);
+        localStorage.setItem("token", fakeToken);
+        localStorage.setItem("username", username);
+
+        document.getElementById("currentUser").innerText = username;
+        document.getElementById("loginSection").style.display = "none";
+        document.getElementById("appSection").style.display = "block";
+        displayGroups();
+    }
+
+    function createGroup() {
+        const groupName = document.getElementById("groupName").value.trim();
+        const msg = document.getElementById("groupMessage");
+        msg.innerText = "";
+
+        if (groupName === "") {
+            msg.innerText = "Please enter a group name.";
+            return;
+        }
+
+        const group = {
+            name: groupName,
+            members: [localStorage.getItem("username")],
+            expenses: [],
+            summaryVisible: false
+        };
+
+        groups.push(group);
+        displayGroups();
+        document.getElementById("groupName").value = "";
+    }
+
+    function displayGroups() {
+        const list = document.getElementById("groupList");
+        list.innerHTML = "";
+
+        groups.forEach((group, index) => {
+            const div = document.createElement("div");
+            div.className = "group";
+            div.innerHTML = `
+                <strong>${group.name}</strong><br>
+                Members: ${group.members.join(", ")}<br>
+                <button onclick="addMember(${index})">Add Member</button>
+                <button onclick="addExpense(${index})">Add Expense</button>
+                <button onclick="toggleSummary(${index})">${group.summaryVisible ? 'Hide' : 'Show'} Summary</button>
+                <button onclick="deleteGroup(${index})">Delete Group</button>
+                <div id="summary-${index}" style="display:${group.summaryVisible ? 'block' : 'none'}; margin-top:10px;" class="summary"></div>
+            `;
+            list.appendChild(div);
+            if (group.summaryVisible) {
+                renderSummary(index);
+            }
+        });
+    }
+
+    function addMember(groupIndex) {
+        const name = prompt("Enter member name:");
+        if (name && name.trim() !== "") {
+            groups[groupIndex].members.push(name.trim());
+            displayGroups();
+        }
+    }
+
+    function addExpense(groupIndex) {
+        const amount = prompt("Enter expense amount:");
+        const paidBy = prompt("Who paid? (Enter member name exactly)");
+
+        if (amount && paidBy && !isNaN(amount) && groups[groupIndex].members.includes(paidBy.trim())) {
+            groups[groupIndex].expenses.push({
+                amount: parseFloat(amount),
+                paidBy: paidBy.trim()
+            });
+            alert("Expense added.");
+            displayGroups();
+        } else {
+            alert("Invalid details.");
+        }
+    }
+
+    function toggleSummary(groupIndex) {
+        groups[groupIndex].summaryVisible = !groups[groupIndex].summaryVisible;
+        displayGroups();
+    }
+
+    function renderSummary(groupIndex) {
+        const group = groups[groupIndex];
+        const total = group.expenses.reduce((sum, exp) => sum + exp.amount, 0);
+        const perPerson = total / group.members.length;
+
+        const balances = {};
+        group.members.forEach(m => balances[m] = -perPerson);
+
+        group.expenses.forEach(exp => balances[exp.paidBy] += exp.amount);
+
+        let summaryHTML = `<strong>Total Expense:</strong> ₹${total.toFixed(2)}<br>`;
+        summaryHTML += `<strong>Per Person Share:</strong> ₹${perPerson.toFixed(2)}<br><br>`;
+        summaryHTML += `<strong>Balance Summary:</strong><br>`;
+        for (const member in balances) {
+            const balance = balances[member].toFixed(2);
+            summaryHTML += `${member}: ₹${balance}<br>`;
+        }
+
+        document.getElementById(`summary-${groupIndex}`).innerHTML = summaryHTML;
+    }
+
+    function deleteGroup(index) {
+        groups.splice(index, 1);
+        displayGroups();
+    }
+
+    function logout() {
+        localStorage.removeItem("token");
+        localStorage.removeItem("username");
+        groups = [];
+        document.getElementById("appSection").style.display = "none";
+        document.getElementById("loginSection").style.display = "block";
+    }
+
+    window.onload = function() {
+        const token = localStorage.getItem("token");
+        const username = localStorage.getItem("username");
+        if (token && username) {
+            document.getElementById("currentUser").innerText = username;
+            document.getElementById("loginSection").style.display = "none";
+            document.getElementById("appSection").style.display = "block";
+            displayGroups();
+        }
+    };
+</script>
+
+</body>
+</html> -->
+
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bill Split App - Level 2+</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: #f2f2f2;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            box-shadow: 0 0 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+        }
+        label {
+            margin-top: 10px;
+            display: block;
+            font-weight: bold;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #3498db;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        .message {
+            color: red;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .group {
+            background: #ecf0f1;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .group button {
+            background: #e74c3c;
+            margin-top: 5px;
+        }
+        .group button:hover {
+            background: #c0392b;
+        }
+        .summary {
+            background: #d4edda;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+            border: 1px solid #c3e6cb;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Bill Split App</h1>
+
+    <div id="loginSection">
+        <label>Username:</label>
+        <input type="text" id="username" placeholder="Enter username">
+        <label>Password:</label>
+        <input type="password" id="password" placeholder="Enter password">
+        <button onclick="login()">Login</button>
+        <div id="loginMessage" class="message"></div>
+    </div>
+
+    <div id="appSection" style="display:none;">
+        <p>Welcome, <strong id="currentUser"></strong>!</p>
+
+        <label>Create Group:</label>
+        <input type="text" id="groupName" placeholder="Group name">
+        <button onclick="createGroup()">Create Group</button>
+        <div id="groupMessage" class="message"></div>
+
+        <h3>Your Groups:</h3>
+        <div id="groupList"></div>
+        <button style="background:#e67e22;" onclick="logout()">Logout</button>
+    </div>
+</div>
+
+<script>
+    let groups = [];
+
+    function login() {
+        const username = document.getElementById("username").value.trim();
+        const password = document.getElementById("password").value.trim();
+        const msg = document.getElementById("loginMessage");
+        msg.innerText = "";
+
+        if (username === "" || password === "") {
+            msg.innerText = "Please enter both username and password.";
+            return;
+        }
+
+        const fakeToken = "jwt_" + btoa(username + ":" + password);
+        localStorage.setItem("token", fakeToken);
+        localStorage.setItem("username", username);
+
+        document.getElementById("currentUser").innerText = username;
+        document.getElementById("loginSection").style.display = "none";
+        document.getElementById("appSection").style.display = "block";
+        displayGroups();
+    }
+
+    function createGroup() {
+        const groupName = document.getElementById("groupName").value.trim();
+        const msg = document.getElementById("groupMessage");
+        msg.innerText = "";
+
+        if (groupName === "") {
+            msg.innerText = "Please enter a group name.";
+            return;
+        }
+
+        const group = {
+            name: groupName,
+            members: [localStorage.getItem("username")],
+            expenses: [],
+            summaryVisible: false
+        };
+
+        groups.push(group);
+        displayGroups();
+        document.getElementById("groupName").value = "";
+    }
+
+    function displayGroups() {
+        const list = document.getElementById("groupList");
+        list.innerHTML = "";
+
+        groups.forEach((group, index) => {
+            const div = document.createElement("div");
+            div.className = "group";
+            div.innerHTML = `
+                <strong>${group.name}</strong><br>
+                Members: ${group.members.join(", ")}<br>
+                <button onclick="addMember(${index})">Add Member</button>
+                <button onclick="addExpense(${index})">Add Expense</button>
+                <button onclick="toggleSummary(${index})">${group.summaryVisible ? 'Hide' : 'Show'} Summary</button>
+                <button onclick="deleteGroup(${index})">Delete Group</button>
+                <div id="summary-${index}" style="display:${group.summaryVisible ? 'block' : 'none'};" class="summary"></div>
+            `;
+            list.appendChild(div);
+            if (group.summaryVisible) {
+                renderSummary(index);
+            }
+        });
+    }
+
+    function addMember(groupIndex) {
+        const name = prompt("Enter member name:");
+        if (name && name.trim() !== "") {
+            groups[groupIndex].members.push(name.trim());
+            displayGroups();
+        }
+    }
+
+    function addExpense(groupIndex) {
+        const amount = prompt("Enter expense amount:");
+        const paidBy = prompt("Who paid? (Enter member name exactly)");
+
+        if (amount && paidBy && !isNaN(amount) && groups[groupIndex].members.includes(paidBy.trim())) {
+            groups[groupIndex].expenses.push({
+                amount: parseFloat(amount),
+                paidBy: paidBy.trim()
+            });
+            alert("Expense added.");
+            displayGroups();
+        } else {
+            alert("Invalid details.");
+        }
+    }
+
+    function toggleSummary(groupIndex) {
+        groups[groupIndex].summaryVisible = !groups[groupIndex].summaryVisible;
+        displayGroups();
+    }
+
+    function renderSummary(groupIndex) {
+        const group = groups[groupIndex];
+        const total = group.expenses.reduce((sum, exp) => sum + exp.amount, 0);
+        const perPerson = total / group.members.length;
+
+        const balances = {};
+        group.members.forEach(m => balances[m] = -perPerson);
+
+        group.expenses.forEach(exp => balances[exp.paidBy] += exp.amount);
+
+        let summaryHTML = `<strong>Total Expense:</strong> ₹${total.toFixed(2)}<br>`;
+        summaryHTML += `<strong>Per Person Share:</strong> ₹${perPerson.toFixed(2)}<br><br>`;
+        summaryHTML += `<strong>Balance Summary:</strong><br>`;
+        for (const member in balances) {
+            const balance = balances[member].toFixed(2);
+            summaryHTML += `${member}: ₹${balance}<br>`;
+        }
+
+        document.getElementById(`summary-${groupIndex}`).innerHTML = summaryHTML;
+    }
+
+    function deleteGroup(index) {
+        groups.splice(index, 1);
+        displayGroups();
+    }
+
+    function logout() {
+        localStorage.removeItem("token");
+        localStorage.removeItem("username");
+        groups = [];
+        document.getElementById("appSection").style.display = "none";
+        document.getElementById("loginSection").style.display = "block";
+    }
+
+    window.onload = function() {
+        const token = localStorage.getItem("token");
+        const username = localStorage.getItem("username");
+        if (token && username) {
+            document.getElementById("currentUser").innerText = username;
+            document.getElementById("loginSection").style.display = "none";
+            document.getElementById("appSection").style.display = "block";
+            displayGroups();
+        }
+    };
+</script>
+
+</body>
+</html>
