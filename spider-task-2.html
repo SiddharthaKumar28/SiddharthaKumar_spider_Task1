@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bill Split App</title>
+    <style>
+        /* Reset and base styling */
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(to right, #74ebd5, #ACB6E5); /* Soft gradient background */
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Centered white container */
+        .container {
+            max-width: 500px;
+            background: #fff;
+            margin: 50px auto;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1); /* Soft shadow */
+        }
+
+        /* Page title */
+        h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        /* Inputs and buttons */
+        input, button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            font-size: 15px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            outline: none;
+        }
+
+        /* Input focus border */
+        input:focus {
+            border-color: #3498db;
+        }
+
+        /* Button styling */
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            transition: background 0.3s ease;
+        }
+
+        button:hover {
+            background: #2980b9;
+        }
+
+        /* Error and success messages */
+        .message {
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .error {
+            color: #e74c3c;
+        }
+
+        .success {
+            color: #27ae60;
+        }
+
+        /* Group card */
+        .group-card {
+            background: #f7f9fa;
+            padding: 15px;
+            border: 1px solid #dcdde1;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+
+        /* Group buttons */
+        .group-card button {
+            background: #2ecc71;
+            margin-top: 8px;
+        }
+
+        .group-card button.delete {
+            background: #e74c3c;
+        }
+
+        .group-card button.summary {
+            background: #8e44ad;
+        }
+
+        /* Summary box */
+        .summary-box {
+            background: #eafaf1;
+            border: 1px solid #b2f0c9;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Bill Split App</h2>
+
+    <!-- Login Section -->
+    <div id="loginBox">
+        <input type="text" id="username" placeholder="Username">
+        <input type="password" id="password" placeholder="Password">
+        <button onclick="login()">Login</button>
+        <div class="message error" id="loginMsg"></div>
+    </div>
+
+    <!-- Main App Section (hidden until login) -->
+    <div id="appBox" style="display:none;">
+        <p>Welcome, <strong id="userDisplay"></strong></p>
+
+        <!-- Create new group -->
+        <input type="text" id="groupName" placeholder="Enter Group Name">
+        <button onclick="createGroup()">Create Group</button>
+        <div class="message error" id="groupMsg"></div>
+
+        <!-- Display user-created groups -->
+        <div id="groupsArea"></div>
+
+        <!-- Logout button -->
+        <button style="background:#e67e22;margin-top:20px;" onclick="logout()">Logout</button>
+    </div>
+</div>
+
+<script>
+    // Array to store all groups
+    let allGroups = [];
+
+    // Function to handle login
+    function login() {
+        const user = document.getElementById("username").value;
+        const pass = document.getElementById("password").value;
+        const msg = document.getElementById("loginMsg");
+
+        if (user === "" || pass === "") {
+            msg.textContent = "Please fill in both fields.";
+            return;
+        }
+
+        // Save user in localStorage for future sessions
+        localStorage.setItem("user", user);
+        document.getElementById("userDisplay").innerText = user;
+
+        // Show app and hide login box
+        document.getElementById("loginBox").style.display = "none";
+        document.getElementById("appBox").style.display = "block";
+    }
+
+    // Function to create a group
+    function createGroup() {
+        const name = document.getElementById("groupName").value.trim();
+        const msg = document.getElementById("groupMsg");
+
+        if (name === "") {
+            msg.textContent = "Group name is required!";
+            return;
+        }
+
+        const group = {
+            name: name,
+            members: [localStorage.getItem("user")],
+            expenses: [],
+            show: false
+        };
+
+        allGroups.push(group); // Add new group
+        document.getElementById("groupName").value = "";
+        showGroups(); // Refresh group list
+    }
+
+    // Display all groups
+    function showGroups() {
+        const area = document.getElementById("groupsArea");
+        area.innerHTML = "";
+
+        allGroups.forEach((g, index) => {
+            const card = document.createElement("div");
+            card.className = "group-card";
+
+            card.innerHTML = `
+                <b>${g.name}</b><br>
+                Members: ${g.members.join(", ")}<br>
+                <button onclick="addMember(${index})">Add Member</button>
+                <button onclick="addExpense(${index})">Add Expense</button>
+                <button class="summary" onclick="toggleSummary(${index})">${g.show ? 'Hide' : 'Show'} Summary</button>
+                <button class="delete" onclick="deleteGroup(${index})">Delete</button>
+                <div id="summary-${index}" class="summary-box" style="display: ${g.show ? 'block' : 'none'};"></div>
+            `;
+
+            area.appendChild(card);
+
+            // If summary is shown, render it
+            if (g.show) {
+                renderSummary(index);
+            }
+        });
+    }
+
+    // Add a new member to the group
+    function addMember(i) {
+        const name = prompt("Member name:");
+        if (name && name.trim()) {
+            allGroups[i].members.push(name.trim());
+            showGroups();
+        }
+    }
+
+    // Add an expense to the group
+    function addExpense(i) {
+        const amount = prompt("Expense amount:");
+        const paidBy = prompt("Who paid?");
+
+        // Check if amount is number and payer exists
+        if (!isNaN(amount) && paidBy && allGroups[i].members.includes(paidBy.trim())) {
+            allGroups[i].expenses.push({ amount: parseFloat(amount), paidBy: paidBy.trim() });
+            alert("Expense added.");
+            showGroups();
+        } else {
+            alert("Invalid entry.");
+        }
+    }
+
+    // Toggle summary visibility
+    function toggleSummary(i) {
+        allGroups[i].show = !allGroups[i].show;
+        showGroups();
+    }
+
+    // Show the summary: total, per person, and balances
+    function renderSummary(i) {
+        const group = allGroups[i];
+        const total = group.expenses.reduce((sum, e) => sum + e.amount, 0);
+        const perHead = total / group.members.length;
+
+        // Start with equal negative balances
+        const balance = {};
+        group.members.forEach(m => balance[m] = -perHead);
+
+        // Add the amounts paid by each person
+        group.expenses.forEach(e => balance[e.paidBy] += e.amount);
+
+        let html = `<b>Total:</b> ₹${total.toFixed(2)}<br>`;
+        html += `<b>Each Pays:</b> ₹${perHead.toFixed(2)}<br><br>`;
+        html += `<b>Balance:</b><br>`;
+        for (let m in balance) {
+            html += `${m}: ₹${balance[m].toFixed(2)}<br>`;
+        }
+
+        // Show inside the summary box
+        document.getElementById(`summary-${i}`).innerHTML = html;
+    }
+
+    // Delete a group
+    function deleteGroup(i) {
+        allGroups.splice(i, 1);
+        showGroups();
+    }
+
+    // Logout and reset
+    function logout() {
+        localStorage.removeItem("user");
+        allGroups = [];
+        document.getElementById("loginBox").style.display = "block";
+        document.getElementById("appBox").style.display = "none";
+    }
+
+    // Auto-login if user data exists
+    window.onload = () => {
+        const savedUser = localStorage.getItem("user");
+        if (savedUser) {
+            document.getElementById("userDisplay").innerText = savedUser;
+            document.getElementById("loginBox").style.display = "none";
+            document.getElementById("appBox").style.display = "block";
+        }
+    };
+</script>
+
+</body>
+</html>
